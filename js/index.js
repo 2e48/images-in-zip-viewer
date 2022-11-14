@@ -48,8 +48,8 @@ fileInput.addEventListener("change", evt => {
             element: "div", className: "image-holder"
           });
 
-          const promptHolder = createElement({ element: "div" });
-          const otherInfo = createElement({ element: "div" });
+          const promptHolder = createElement({ element: "div", className: "image-info prompt" });
+          const otherInfo = createElement({ element: "div", className: "image-info config" });
 
           const itemName = zipEntry.name
           if (imageTypes.some(ext => itemName.endsWith(ext))) {
@@ -59,7 +59,7 @@ fileInput.addEventListener("change", evt => {
             image.onclick = function () {
               window.open(image.src);
             };
-            image.className = "";
+            image.className = "grid-image";
 
 
             exifr.parse(image.src).then(parsed => {

@@ -1,7 +1,17 @@
-img {
-    height: 250px;
+.image-holder {
+    border-top: 0.1em solid gray;
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-rows: auto auto;
+    gap: 0.25em;
 }
 
-.image-holder {
-    border: 0px red solid;
+.image-info {
+    text-align: left;
+}
+
+.grid-image {
+    height: 20em;
+
+    grid-row: 1 / span 2;
 }
