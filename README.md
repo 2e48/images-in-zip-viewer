@@ -10,3 +10,4 @@ Not recursive and currently the site looks like shit (will improve the thing, ma
 ## Libraries used:
  
  - [JSZip](https://stuk.github.io/jszip/)
+ - [exifr](https://github.com/MikeKovarik/exifr)
