@@ -44,6 +44,13 @@ fileInput.addEventListener("change", evt => {
           const data = zipEntry._data.compressedContent;
           const dataBlob = new Blob([data]);
 
+          const imageHolder = createElement({
+            element: "div", className: "image-holder"
+          });
+
+          const promptHolder = createElement({ element: "div" });
+          const otherInfo = createElement({ element: "div" });
+
           const itemName = zipEntry.name
           if (imageTypes.some(ext => itemName.endsWith(ext))) {
             const image = new Image();
@@ -52,9 +59,23 @@ fileInput.addEventListener("change", evt => {
             image.onclick = function () {
               window.open(image.src);
             };
-            image.className = "img-fluid";
+            image.className = "";
 
-            titleFiles.appendChild(image);
+
+            exifr.parse(image.src).then(parsed => {
+              let parameters = JSON.parse(parsed.Comment);
+              let prompt = parsed.Description;
+
+              promptHolder.innerHTML = prompt;
+              otherInfo.innerHTML = `Seed: ${parameters.seed}, Sampler: ${parameters.sampler}, Steps: ${parameters.steps}, Scale: ${parameters.scale}`;
+
+              console.log(parameters, prompt);
+            });
+
+            imageHolder.appendChild(image);
+            imageHolder.appendChild(promptHolder);
+            imageHolder.appendChild(otherInfo);
+            titleFiles.appendChild(imageHolder);
           }
         });
         //let readTimeAfter = new Date();
