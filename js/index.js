@@ -30,8 +30,10 @@ async function handleFile(file) {
   }
 
   // Create a container for the images inside the ZIP
-  const imageContainer = document.createElement("div");
-  imageContainer.className = "text-center";
+  const imageContainer = createElement({
+    element: "div",
+    className: "image-grid"
+  });
 
   // Create an accordion for the ZIP file
   const accordion = accordionCreator(file.name, file.name, imageContainer);
@@ -76,10 +78,6 @@ async function handleFile(file) {
             modal.show();
           };
 
-          // Create containers for metadata
-          const promptHolder = createElement({ element: "div", className: "image-info prompt" });
-          const otherInfo = createElement({ element: "div", className: "image-info config" });
-
           // Try to parse EXIF data
           const parsed = await exifr.parse(imageUrl);
 
@@ -93,14 +91,6 @@ async function handleFile(file) {
               console.warn("Failed to parse Comment as JSON", e);
             }
 
-            promptHolder.innerHTML = prompt;
-            otherInfo.innerHTML = `
-              Seed: ${parameters.seed || "N/A"}, 
-              Sampler: ${parameters.sampler || "N/A"}, 
-              Steps: ${parameters.steps || "N/A"}, 
-              Scale: ${parameters.scale || "N/A"}
-            `;
-
             image.dataset.prompt = prompt;
             image.dataset.seed = parameters.seed;
             image.dataset.sampler = parameters.sampler;
@@ -111,8 +101,6 @@ async function handleFile(file) {
           // Create a container for the image and its metadata
           const imageHolder = createElement({ element: "div", className: "image-holder" });
           imageHolder.appendChild(image);
-          imageHolder.appendChild(promptHolder);
-          imageHolder.appendChild(otherInfo);
 
           imageContainer.appendChild(imageHolder);
 

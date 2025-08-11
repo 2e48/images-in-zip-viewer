@@ -1,20 +1,50 @@
-.image-holder {
-    border-top: 0.1em solid gray;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-rows: auto auto;
-    gap: 0.5em;
-    padding: 0.5em 0;
+/* Main container for each ZIP file section */
+.zip-section {
+    margin-bottom: 2rem;
 }
 
+.zip-header {
+    font-size: 1.25rem;
+    font-weight: bold;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid #ccc;
+}
+
+/* Grid layout for images */
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
+}
+
+/* Each image holder */
+.image-holder {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+}
+
+/* Image styling */
+.grid-image {
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    object-fit: contain;
+    cursor: pointer;
+}
+
+/* Metadata text */
 .image-info {
+    font-size: 0.85rem;
     text-align: left;
     word-break: break-word;
 }
 
-.grid-image {
-    max-height: 20em;
-    width: auto;
-    object-fit: contain;
-    cursor: pointer;
+.prompt {
+    font-weight: bold;
 }
