@@ -68,6 +68,7 @@ async function handleFile(file) {
             // Populate metadata
             modalMetadata.innerHTML = `
               <p><strong>Prompt:</strong> ${image.dataset.prompt || "N/A"}</p>
+              <p><strong>Negative:</strong> ${image.dataset.uc || "N/A"}</p>
               <p><strong>Seed:</strong> ${image.dataset.seed || "N/A"}</p>
               <p><strong>Sampler:</strong> ${image.dataset.sampler || "N/A"}</p>
               <p><strong>Steps:</strong> ${image.dataset.steps || "N/A"}</p>
@@ -82,7 +83,6 @@ async function handleFile(file) {
           const parsed = await exifr.parse(imageUrl);
 
           if (parsed) {
-            let prompt = parsed.Description || "No prompt found";
             let parameters = {};
 
             try {
@@ -91,11 +91,14 @@ async function handleFile(file) {
               console.warn("Failed to parse Comment as JSON", e);
             }
 
-            image.dataset.prompt = prompt;
-            image.dataset.seed = parameters.seed;
-            image.dataset.sampler = parameters.sampler;
-            image.dataset.steps = parameters.steps;
-            image.dataset.scale = parameters.scale;
+            image.dataset.prompt = parameters.prompt || "N/A";
+            image.dataset.uc = parameters.uc || "N/A";
+            image.dataset.seed = parameters.seed || "N/A";
+            image.dataset.sampler = parameters.sampler || "N/A";
+            image.dataset.steps = parameters.steps || "N/A";
+            image.dataset.scale = parameters.scale || "N/A";
+
+            console.log(parameters);
           }
 
           // Create a container for the image and its metadata
