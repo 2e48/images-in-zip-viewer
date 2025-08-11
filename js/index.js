@@ -57,7 +57,12 @@ async function handleFile(file) {
           image.src = imageUrl;
           image.title = itemName;
           image.className = "grid-image";
-          image.onclick = () => window.open(image.src); // Open image in new tab on click
+          image.onclick = () => {
+            const modalImage = document.getElementById("modalImage");
+            modalImage.src = image.src;
+            const modal = new bootstrap.Modal(document.getElementById("imageModal"));
+            modal.show();
+          };
 
           // Create containers for metadata
           const promptHolder = createElement({ element: "div", className: "image-info prompt" });
