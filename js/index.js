@@ -67,12 +67,17 @@ async function handleFile(file) {
 
             // Populate metadata
             modalMetadata.innerHTML = `
-              <p><strong>Prompt:</strong> ${image.dataset.prompt || "N/A"}</p>
-              <p><strong>Negative:</strong> ${image.dataset.uc || "N/A"}</p>
-              <p><strong>Seed:</strong> ${image.dataset.seed || "N/A"}</p>
-              <p><strong>Sampler:</strong> ${image.dataset.sampler || "N/A"}</p>
-              <p><strong>Steps:</strong> ${image.dataset.steps || "N/A"}</p>
-              <p><strong>Scale:</strong> ${image.dataset.scale || "N/A"}</p>
+              <p><strong>Prompt</strong></p>
+                <code class="prompt-box">${image.dataset.prompt || "N/A"}</code>
+              <p><strong>Negative</strong></p>
+                <code class="prompt-box">${image.dataset.uc || "N/A"}</code>
+              <details><summary>Other info</summary>
+                <p><strong>Model:</strong> ${image.dataset.model || "N/A"}</p>
+                <p><strong>Seed:</strong> ${image.dataset.seed || "N/A"}</p>
+                <p><strong>Sampler:</strong> ${image.dataset.sampler || "N/A"}</p>
+                <p><strong>Steps:</strong> ${image.dataset.steps || "N/A"}</p>
+                <p><strong>Scale:</strong> ${image.dataset.scale || "N/A"}</p>
+              </details>
             `;
             
             const modal = new bootstrap.Modal(document.getElementById("imageModal"));
@@ -91,6 +96,7 @@ async function handleFile(file) {
               console.warn("Failed to parse Comment as JSON", e);
             }
 
+            image.dataset.model = parsed.Source || "Unknown";
             image.dataset.prompt = parameters.prompt || "N/A";
             image.dataset.uc = parameters.uc || "N/A";
             image.dataset.seed = parameters.seed || "N/A";
@@ -98,7 +104,7 @@ async function handleFile(file) {
             image.dataset.steps = parameters.steps || "N/A";
             image.dataset.scale = parameters.scale || "N/A";
 
-            console.log(parameters);
+            console.log(parsed, parameters);
           }
 
           // Create a container for the image and its metadata
