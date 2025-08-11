@@ -59,7 +59,19 @@ async function handleFile(file) {
           image.className = "grid-image";
           image.onclick = () => {
             const modalImage = document.getElementById("modalImage");
+            const modalMetadata = document.getElementById("modalMetadata");
+            
             modalImage.src = image.src;
+
+            // Populate metadata
+            modalMetadata.innerHTML = `
+              <p><strong>Prompt:</strong> ${image.dataset.prompt || "N/A"}</p>
+              <p><strong>Seed:</strong> ${image.dataset.seed || "N/A"}</p>
+              <p><strong>Sampler:</strong> ${image.dataset.sampler || "N/A"}</p>
+              <p><strong>Steps:</strong> ${image.dataset.steps || "N/A"}</p>
+              <p><strong>Scale:</strong> ${image.dataset.scale || "N/A"}</p>
+            `;
+            
             const modal = new bootstrap.Modal(document.getElementById("imageModal"));
             modal.show();
           };
@@ -88,6 +100,12 @@ async function handleFile(file) {
               Steps: ${parameters.steps || "N/A"}, 
               Scale: ${parameters.scale || "N/A"}
             `;
+
+            image.dataset.prompt = prompt;
+            image.dataset.seed = parameters.seed;
+            image.dataset.sampler = parameters.sampler;
+            image.dataset.steps = parameters.steps;
+            image.dataset.scale = parameters.scale;
           }
 
           // Create a container for the image and its metadata
