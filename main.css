@@ -1,17 +1,118 @@
-.image-holder {
-    border-top: 0.1em solid gray;
+/* Main container for each ZIP file section */
+.zip-section {
+    margin-bottom: 2rem;
+}
+
+.zip-header {
+    font-size: 1.25rem;
+    font-weight: bold;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid #ccc;
+}
+
+/* Grid layout for images */
+.image-grid {
     display: grid;
-    grid-template-columns: auto auto;
-    grid-template-rows: auto auto;
-    gap: 0.25em;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
 }
 
-.image-info {
-    text-align: left;
+/* Each image holder */
+.image-holder {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+    height: 100%;
 }
 
+/* Image styling */
 .grid-image {
-    height: 20em;
+    width: 100%;
+    height: 300px;
+    max-height: 500px;
+    object-fit: cover;
+    object-position: center;
+    cursor: pointer;
+    border-radius: 4px;
+}
 
-    grid-row: 1 / span 2;
+/* Metadata text */
+.image-info {
+    font-size: 0.85rem;
+    text-align: left;
+    word-break: break-word;
+}
+
+.prompt {
+    font-weight: bold;
+}
+
+.modal-fullscreen-custom .modal-dialog {
+    max-width: 85vw;
+    margin: 1.75rem auto;
+}
+
+#modalImage {
+    max-height: 85vh;
+    object-fit: contain;
+}
+
+/* Prompt box styling */
+.prompt-box {
+    display: block;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+/* Style <details> like a Bootstrap card */
+details {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    margin-top: 1rem;
+    background-color: #f8f9fa;
+}
+
+/* Style <summary> like a Bootstrap card header */
+summary {
+    font-weight: bold;
+    cursor: pointer;
+    list-style: none;
+    padding: 0.5rem;
+    margin: -0.5rem -0.5rem 0.5rem -0.5rem;
+    background-color: #e9ecef;
+    border-radius: 0.375rem 0.375rem 0 0;
+}
+
+/* Remove default triangle in WebKit browsers */
+summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Optional: Add a custom triangle */
+summary::before {
+    content: "▶ ";
+    display: inline-block;
+    transition: transform 0.2s;
+}
+
+details[open] summary::before {
+    transform: rotate(90deg);
+}
+
+/* Metadata inside details */
+details p {
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
 }

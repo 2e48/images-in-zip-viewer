@@ -1,97 +1,139 @@
-"use strict"
+"use strict";
 
-// removed jquery but code from https://stuk.github.io/jszip/documentation/examples/read-local-file-api.html
-
+// Supported image file extensions
 const imageTypes = ["png", "jpg", "jpeg", "gif", "bmp", "tiff"];
+
+// DOM elements
 const fileInput = document.getElementById("file");
 const resultContainer = document.getElementById("result");
 
-fileInput.addEventListener("change", evt => {
-  resultContainer.innerHTML = "";
+// Listen for file input changes
+fileInput.addEventListener("change", async (evt) => {
+  resultContainer.innerHTML = ""; // Clear previous results
 
-  function handleFile(file) {
-    // const title = document.createElement("h4");
-    // title.textContent = file.name;
-    // resultContainer.appendChild(title);
-    if (!file.name.endsWith("zip")) {
-      const accordion = accordionCreator(file.name, file.name, `${file.name} is not a zip file!`);
-      resultContainer.appendChild(accordion);
-      return;
-    }
-
-    //const titleSpan = document.createElement("span");
-    //title.appendChild(titleSpan);
-
-    const titleFiles = document.createElement("div");
-    titleFiles.className = "text-center";
-    //title.appendChild(titleFiles);
-
-    const accordion = accordionCreator(file.name, file.name, titleFiles);
-    resultContainer.appendChild(accordion);
-
-    //const headerText = document.getElementById(`heading${file.name.hashCode()}`);
-    //console.log(headerText, `header${file.name.hashCode()}`);
-
-    let dateBefore = new Date();
-
-    JSZip.loadAsync(file).then(
-      zip => {
-        //let dateAfter = new Date();
-        //headerText.textContent += (`(loaded in ${dateAfter - dateBefore}ms)`);
-
-        //let readTimeBefore = new Date();
-        zip.forEach((relativePath, zipEntry) => {
-          const data = zipEntry._data.compressedContent;
-          const dataBlob = new Blob([data]);
-
-          const imageHolder = createElement({
-            element: "div", className: "image-holder"
-          });
-
-          const promptHolder = createElement({ element: "div", className: "image-info prompt" });
-          const otherInfo = createElement({ element: "div", className: "image-info config" });
-
-          const itemName = zipEntry.name
-          if (imageTypes.some(ext => itemName.endsWith(ext))) {
-            const image = new Image();
-            image.src = URL.createObjectURL(dataBlob);
-            image.title = itemName;
-            image.onclick = function () {
-              window.open(image.src);
-            };
-            image.className = "grid-image";
-
-
-            exifr.parse(image.src).then(parsed => {
-              let parameters = JSON.parse(parsed.Comment);
-              let prompt = parsed.Description;
-
-              promptHolder.innerHTML = prompt;
-              otherInfo.innerHTML = `Seed: ${parameters.seed}, Sampler: ${parameters.sampler}, Steps: ${parameters.steps}, Scale: ${parameters.scale}`;
-
-              console.log(parameters, prompt);
-            });
-
-            imageHolder.appendChild(image);
-            imageHolder.appendChild(promptHolder);
-            imageHolder.appendChild(otherInfo);
-            titleFiles.appendChild(imageHolder);
-          }
-        });
-        //let readTimeAfter = new Date();
-        //titleSpan.innerHTML += `(zip fully scanned in ${readTimeAfter - readTimeBefore}ms)`;
-
-      }, e => {
-        //titleSpan.innerHTML = ` Cant read ${file.name}:, ${e.message}`;
-      });
-  }
-
-  let files = evt.target.files;
+  const files = evt.target.files;
   for (let i = 0; i < files.length; i++) {
-    handleFile(files[i]);
+    await handleFile(files[i]); // Process each file
   }
 });
 
+/**
+ * Process a single uploaded file
+ * @param {File} file - The uploaded file
+ */
+async function handleFile(file) {
+  // If not a ZIP file, show error in accordion
+  if (!file.name.endsWith(".zip")) {
+    const accordion = accordionCreator(file.name, file.name, `${file.name} is not a zip file!`);
+    resultContainer.appendChild(accordion);
+    return;
+  }
+
+  // Create a container for the images inside the ZIP
+  const imageContainer = createElement({
+    element: "div",
+    className: "image-grid"
+  });
+
+  // Create an accordion for the ZIP file
+  const accordion = accordionCreator(file.name, file.name, imageContainer);
+  resultContainer.appendChild(accordion);
+
+  try {
+    // Load the ZIP file
+    const zip = await JSZip.loadAsync(file);
+
+    // Loop through each file in the ZIP
+    zip.forEach(async (relativePath, zipEntry) => {
+      const itemName = zipEntry.name;
+
+      // Check if the file is an image
+      if (imageTypes.some(ext => itemName.toLowerCase().endsWith(ext))) {
+        try {
+          // Get the image data as a Blob
+          const data = await zipEntry.async("blob");
+          const imageUrl = URL.createObjectURL(data);
+
+          // Create image element
+          const image = new Image();
+          image.src = imageUrl;
+          image.title = itemName;
+          image.className = "grid-image";
+          image.onclick = () => {
+            const modalImage = document.getElementById("modalImage");
+            const modalMetadata = document.getElementById("modalMetadata");
+            
+            modalImage.src = image.src;
+
+            // Populate metadata
+            modalMetadata.innerHTML = `
+              <p><strong>Prompt</strong></p>
+                <code class="prompt-box">${image.dataset.prompt || "N/A"}</code>
+              <p><strong>Negative</strong></p>
+                <code class="prompt-box">${image.dataset.uc || "N/A"}</code>
+              <details><summary>Other info</summary>
+                <p><strong>Model:</strong> ${image.dataset.model || "N/A"}</p>
+                <p><strong>Seed:</strong> ${image.dataset.seed || "N/A"}</p>
+                <p><strong>Sampler:</strong> ${image.dataset.sampler || "N/A"}</p>
+                <p><strong>Steps:</strong> ${image.dataset.steps || "N/A"}</p>
+                <p><strong>Scale:</strong> ${image.dataset.scale || "N/A"}</p>
+              </details>
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById("imageModal"));
+            modal.show();
+          };
+
+          // Try to parse EXIF data
+          const parsed = await exifr.parse(imageUrl);
+
+          if (parsed) {
+            let parameters = {};
+
+            try {
+              parameters = JSON.parse(parsed.Comment || "{}");
+            } catch (e) {
+              console.warn("Failed to parse Comment as JSON", e);
+            }
+
+            image.dataset.model = parsed.Source || "Unknown";
+            image.dataset.prompt = parameters.prompt || "N/A";
+            image.dataset.uc = parameters.uc || "N/A";
+            image.dataset.seed = parameters.seed || "N/A";
+            image.dataset.sampler = parameters.sampler || "N/A";
+            image.dataset.steps = parameters.steps || "N/A";
+            image.dataset.scale = parameters.scale || "N/A";
+
+            console.log(parsed, parameters);
+          }
+
+          // Create a container for the image and its metadata
+          const imageHolder = createElement({ element: "div", className: "image-holder" });
+          imageHolder.appendChild(image);
+
+          imageContainer.appendChild(imageHolder);
+
+          // Revoke the object URL to free memory after a delay
+          image.onload = () => {
+            URL.revokeObjectURL(imageUrl);
+          };
+        } catch (err) {
+          console.error("Error processing image:", itemName, err);
+        }
+      }
+    });
+  } catch (err) {
+    console.error("Failed to load ZIP file:", err);
+    const errorMsg = createElement({ element: "div", content: `Error reading ZIP: ${err.message}` });
+    imageContainer.appendChild(errorMsg);
+  }
+}
+
+/**
+ * Utility to create DOM elements with optional attributes and content
+ * @param {Object} options - Element options
+ * @returns {HTMLElement}
+ */
 function createElement({
   element = "div",
   className = "",
@@ -99,8 +141,8 @@ function createElement({
   content = "",
 }) {
   const elem = document.createElement(element);
-  elem.className = className;
-  elem.id = id;
+  if (className) elem.className = className;
+  if (id) elem.id = id;
 
   if (content instanceof HTMLElement) {
     elem.appendChild(content);
@@ -111,61 +153,62 @@ function createElement({
   return elem;
 }
 
+/**
+ * Creates a Bootstrap-style accordion item
+ * @param {string} id - Unique ID for the accordion
+ * @param {string} headerText - Text for the accordion header
+ * @param {string|HTMLElement} content - Content inside the accordion body
+ * @returns {HTMLElement}
+ */
 function accordionCreator(id, headerText, content) {
-  function createHeading(id, headerText) {
-    const h2 = createElement({
-      element: "h2",
-      className: "accordion-header sticky-top",
-      id: `heading${id}`,
-    });
+  const itemId = String(id).hashCode(); // Generate unique ID
 
-    const button = createElement({
-      element: "button",
-      className: "accordion-button collapsed",
-      content: headerText,
-    });
-    button.dataset.bsTarget = `#collapse${id}`;
-    button.dataset.bsToggle = 'collapse';
-
-    h2.appendChild(button);
-
-    return h2;
-  }
-
-  function createBody(id, content) {
-    const divContent = createElement({
-      element: "div",
-      className: "accordion-body",
-      content: content,
-    });
-    const divWrapper = createElement({
-      className: "accordion-collapse collapse",
-      id: `collapse${id}`,
-    });
-
-    divWrapper.appendChild(divContent);
-
-    return divWrapper;
-  }
-
-  const div = createElement({
-    className: "accordion-item"
+  const heading = createElement({
+    element: "h2",
+    className: "accordion-header sticky-top",
+    id: `heading${itemId}`,
   });
 
-  div.appendChild(createHeading(id.hashCode(), headerText));
-  div.appendChild(createBody(id.hashCode(), content));
+  const button = createElement({
+    element: "button",
+    className: "accordion-button collapsed",
+    content: headerText,
+  });
+  button.setAttribute("data-bs-toggle", "collapse");
+  button.setAttribute("data-bs-target", `#collapse${itemId}`);
 
-  return div;
+  heading.appendChild(button);
+
+  const bodyContent = createElement({
+    element: "div",
+    className: "accordion-body",
+    content: content,
+  });
+
+  const collapseDiv = createElement({
+    element: "div",
+    className: "accordion-collapse collapse",
+    id: `collapse${itemId}`,
+  });
+  collapseDiv.appendChild(bodyContent);
+
+  const accordionItem = createElement({ element: "div", className: "accordion-item" });
+  accordionItem.appendChild(heading);
+  accordionItem.appendChild(collapseDiv);
+
+  return accordionItem;
 }
 
+/**
+ * Adds a simple hash function to String prototype for generating unique IDs
+ * @returns {number}
+ */
 String.prototype.hashCode = function () {
-  var hash = 0,
-    i, chr;
-  if (this.length === 0) return hash;
-  for (i = 0; i < this.length; i++) {
-    chr = this.charCodeAt(i);
+  let hash = 0;
+  for (let i = 0; i < this.length; i++) {
+    const chr = this.charCodeAt(i);
     hash = ((hash << 5) - hash) + chr;
-    hash |= 0; // Convert to 32bit integer
+    hash |= 0; // Convert to 32-bit integer
   }
   return hash;
-}
+};
