@@ -127,11 +127,6 @@ async function handleFile(file) {
           imageHolder.appendChild(image);
 
           imageContainer.appendChild(imageHolder);
-
-          // Revoke the object URL to free memory after a delay
-          image.onload = () => {
-            URL.revokeObjectURL(imageUrl);
-          };
         } catch (err) {
           console.error("Error processing image:", itemName, err);
         }
