@@ -59,11 +59,22 @@ async function handleFile(file) {
           image.src = imageUrl;
           image.title = itemName;
           image.className = "grid-image";
+
+          image.dataset.filename = itemName;
+          image.currentBlob = data;
+
           image.onclick = () => {
             const modalImage = document.getElementById("modalImage");
             const modalMetadata = document.getElementById("modalMetadata");
+            const modalFilename = document.getElementById("modalFilename");
+            const downloadBtn = document.getElementById("downloadBtn");
             
             modalImage.src = image.src;
+            modalFilename.textContent = image.dataset.filename;
+
+            downloadBtn.onclick = () => {
+                downloadImage(image.currentBlob, image.dataset.filename);
+            };
 
             // Populate metadata
             modalMetadata.innerHTML = `
@@ -104,7 +115,11 @@ async function handleFile(file) {
             image.dataset.steps = parameters.steps || "N/A";
             image.dataset.scale = parameters.scale || "N/A";
 
-            console.log(parsed, parameters);
+            // console.log("Parsed parameters", parsed, parameters);
+            console.groupCollapsed(itemName);
+            console.log("Comment Object", parameters);
+            console.log("Image EXIFR", parsed);
+            console.groupEnd();
           }
 
           // Create a container for the image and its metadata
@@ -212,3 +227,26 @@ String.prototype.hashCode = function () {
   }
   return hash;
 };
+
+/**
+ * Triggers a download of the given Blob data with the specified filename.
+ * @param {Blob} blobData - The binary data of the file.
+ * @param {string} filename - The desired name for the downloaded file.
+ */
+function downloadImage(blobData, filename) {
+  if (!blobData || !filename) {
+    console.error("Missing blob data or filename for download.");
+    return;
+  }
+  
+  const downloadUrl = URL.createObjectURL(blobData);
+  
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  
+  document.body.removeChild(a);
+  URL.revokeObjectURL(downloadUrl);
+}
