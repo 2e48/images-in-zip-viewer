@@ -76,6 +76,8 @@ async function handleFile(file) {
                 downloadImage(image.currentBlob, image.dataset.filename);
             };
 
+            let additionalInfo = jsonToString(image.dataset.fullData, ['prompt', 'uc'])
+
             // Populate metadata
             modalMetadata.innerHTML = `
               <p><strong>Prompt</strong></p>
@@ -88,6 +90,8 @@ async function handleFile(file) {
                 <p><strong>Sampler:</strong> ${image.dataset.sampler || "N/A"}</p>
                 <p><strong>Steps:</strong> ${image.dataset.steps || "N/A"}</p>
                 <p><strong>Scale:</strong> ${image.dataset.scale || "N/A"}</p>
+                <hr>
+                <code class="prompt-box" style="overflow-x: scroll !important;">${additionalInfo}</code>
               </details>
             `;
             
@@ -114,12 +118,7 @@ async function handleFile(file) {
             image.dataset.sampler = parameters.sampler || "N/A";
             image.dataset.steps = parameters.steps || "N/A";
             image.dataset.scale = parameters.scale || "N/A";
-
-            // console.log("Parsed parameters", parsed, parameters);
-            console.groupCollapsed(itemName);
-            console.log("Comment Object", parameters);
-            console.log("Image EXIFR", parsed);
-            console.groupEnd();
+            image.dataset.fullData = parsed.Comment || "{}";
           }
 
           // Create a container for the image and its metadata
@@ -244,4 +243,48 @@ function downloadImage(blobData, filename) {
   
   document.body.removeChild(a);
   URL.revokeObjectURL(downloadUrl);
+}
+
+function jsonToString(data, ignoreKeys = [], indent = 0, indentChar = '  ') {
+  if (data === null || data === undefined) return "";
+
+  let jsonObject;
+  try {
+    jsonObject = (typeof data === "string") ? JSON.parse(data) : data;
+  } catch (err) {
+    console.error('Cannot parse data to JSON:', err);
+    return "Cannot parse image data to JSON, check console.";
+  }
+
+  const currentIndent = indentChar.repeat(indent);
+  const nextIndentLevel = indent + 1;
+  let htmlString = "";
+
+  Object.keys(jsonObject)
+    .filter(key => !ignoreKeys.includes(key))
+    .filter(key => key !== null || key !== undefined)
+    // .sort((a, b) => a.localeCompare(b))
+    .forEach(key => {
+      let value = jsonObject[key];
+      
+      if (Array.isArray(value)) {
+        let arrayContent = [];
+
+        value.forEach(item => {
+          if (typeof item === "object") {
+            arrayContent.push(jsonToString(item, [], nextIndentLevel));
+          } else {
+            arrayContent.push(item);
+          }
+        });
+
+        value = `[ ${arrayContent.join(", ")} ]`;
+      } else if (typeof value === "object" && Boolean(value)) {
+        value = `{\n${jsonToString(value, [], nextIndentLevel)}${currentIndent}}`;
+      }
+
+      htmlString += `${currentIndent}${key}: ${value}\n`;
+    });
+  
+  return htmlString;
 }
