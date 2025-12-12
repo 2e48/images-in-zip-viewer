@@ -245,6 +245,15 @@ function downloadImage(blobData, filename) {
   URL.revokeObjectURL(downloadUrl);
 }
 
+/**
+ * Recursively converts a JSON object into a formatted, indented string representation.
+ *
+ * @param {object|string} data The JSON object or string to convert.
+ * @param {string[]} ignoreKeys An array of keys to exclude from the output.
+ * @param {number} indent The current indentation level (used for recursion).
+ * @param {string} indentChar The character/string to use for each level of indentation.
+ * @returns {string} The formatted, indented string representation of the JSON data.
+ */
 function jsonToString(data, ignoreKeys = [], indent = 0, indentChar = '  ') {
   if (data === null || data === undefined) return "";
 
