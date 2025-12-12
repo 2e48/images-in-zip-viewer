@@ -88,10 +88,13 @@ async function handleFile(file) {
                 <p><strong>Model:</strong> ${image.dataset.model || "N/A"}</p>
                 <p><strong>Seed:</strong> ${image.dataset.seed || "N/A"}</p>
                 <p><strong>Sampler:</strong> ${image.dataset.sampler || "N/A"}</p>
+                <p><strong>Resolution (w x h):</strong> ${image.dataset.width || "N/A"}px x ${image.dataset.height || "N/A"}px</p>
                 <p><strong>Steps:</strong> ${image.dataset.steps || "N/A"}</p>
                 <p><strong>Scale:</strong> ${image.dataset.scale || "N/A"}</p>
-                <hr>
-                <code class="prompt-box" style="overflow-x: scroll !important;">${additionalInfo}</code>
+              </details>
+              <details><summary>Full JSON metadata</summary>
+                <p>Excluded <code>prompt</code> and <code>uc</code> since its already shown above</p>
+                <code class="prompt-box"">${additionalInfo}</code>
               </details>
             `;
             
@@ -118,6 +121,8 @@ async function handleFile(file) {
             image.dataset.sampler = parameters.sampler || "N/A";
             image.dataset.steps = parameters.steps || "N/A";
             image.dataset.scale = parameters.scale || "N/A";
+            image.dataset.width = parameters.width || "N/A";
+            image.dataset.height = parameters.height || "N/A";
             image.dataset.fullData = parsed.Comment || "{}";
           }
 
