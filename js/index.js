@@ -24,7 +24,11 @@ fileInput.addEventListener("change", async (evt) => {
 async function handleFile(file) {
   // If not a ZIP file, show error in accordion
   if (!file.name.endsWith(".zip")) {
-    const accordion = accordionCreator(file.name, file.name, `${file.name} is not a zip file!`);
+    const accordion = accordionCreator(
+      file.name,
+      file.name,
+      `${file.name} is not a zip file!`,
+    );
     resultContainer.appendChild(accordion);
     return;
   }
@@ -32,7 +36,7 @@ async function handleFile(file) {
   // Create a container for the images inside the ZIP
   const imageContainer = createElement({
     element: "div",
-    className: "image-grid"
+    className: "image-grid",
   });
 
   // Create an accordion for the ZIP file
@@ -48,7 +52,7 @@ async function handleFile(file) {
       const itemName = zipEntry.name;
 
       // Check if the file is an image
-      if (imageTypes.some(ext => itemName.toLowerCase().endsWith(ext))) {
+      if (imageTypes.some((ext) => itemName.toLowerCase().endsWith(ext))) {
         try {
           // Get the image data as a Blob
           const data = await zipEntry.async("blob");
@@ -68,15 +72,18 @@ async function handleFile(file) {
             const modalMetadata = document.getElementById("modalMetadata");
             const modalFilename = document.getElementById("modalFilename");
             const downloadBtn = document.getElementById("downloadBtn");
-            
+
             modalImage.src = image.src;
             modalFilename.textContent = image.dataset.filename;
 
             downloadBtn.onclick = () => {
-                downloadImage(image.currentBlob, image.dataset.filename);
+              downloadImage(image.currentBlob, image.dataset.filename);
             };
 
-            let additionalInfo = jsonToString(image.dataset.fullData, ['prompt', 'uc'])
+            let additionalInfo = jsonToString(image.dataset.fullData, [
+              "prompt",
+              "uc",
+            ]);
 
             // Populate metadata
             modalMetadata.innerHTML = `
@@ -97,8 +104,10 @@ async function handleFile(file) {
                 <code class="prompt-box"">${additionalInfo}</code>
               </details>
             `;
-            
-            const modal = new bootstrap.Modal(document.getElementById("imageModal"));
+
+            const modal = new bootstrap.Modal(
+              document.getElementById("imageModal"),
+            );
             modal.show();
           };
 
@@ -127,7 +136,10 @@ async function handleFile(file) {
           }
 
           // Create a container for the image and its metadata
-          const imageHolder = createElement({ element: "div", className: "image-holder" });
+          const imageHolder = createElement({
+            element: "div",
+            className: "image-holder",
+          });
           imageHolder.appendChild(image);
 
           imageContainer.appendChild(imageHolder);
@@ -138,7 +150,10 @@ async function handleFile(file) {
     });
   } catch (err) {
     console.error("Failed to load ZIP file:", err);
-    const errorMsg = createElement({ element: "div", content: `Error reading ZIP: ${err.message}` });
+    const errorMsg = createElement({
+      element: "div",
+      content: `Error reading ZIP: ${err.message}`,
+    });
     imageContainer.appendChild(errorMsg);
   }
 }
@@ -206,7 +221,10 @@ function accordionCreator(id, headerText, content) {
   });
   collapseDiv.appendChild(bodyContent);
 
-  const accordionItem = createElement({ element: "div", className: "accordion-item" });
+  const accordionItem = createElement({
+    element: "div",
+    className: "accordion-item",
+  });
   accordionItem.appendChild(heading);
   accordionItem.appendChild(collapseDiv);
 
@@ -221,7 +239,7 @@ String.prototype.hashCode = function () {
   let hash = 0;
   for (let i = 0; i < this.length; i++) {
     const chr = this.charCodeAt(i);
-    hash = ((hash << 5) - hash) + chr;
+    hash = (hash << 5) - hash + chr;
     hash |= 0; // Convert to 32-bit integer
   }
   return hash;
@@ -237,15 +255,15 @@ function downloadImage(blobData, filename) {
     console.error("Missing blob data or filename for download.");
     return;
   }
-  
+
   const downloadUrl = URL.createObjectURL(blobData);
-  
-  const a = document.createElement('a');
+
+  const a = document.createElement("a");
   a.href = downloadUrl;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  
+
   document.body.removeChild(a);
   URL.revokeObjectURL(downloadUrl);
 }
@@ -259,14 +277,14 @@ function downloadImage(blobData, filename) {
  * @param {string} indentChar The character/string to use for each level of indentation.
  * @returns {string} The formatted, indented string representation of the JSON data.
  */
-function jsonToString(data, ignoreKeys = [], indent = 0, indentChar = '  ') {
+function jsonToString(data, ignoreKeys = [], indent = 0, indentChar = "  ") {
   if (data === null || data === undefined) return "";
 
   let jsonObject;
   try {
-    jsonObject = (typeof data === "string") ? JSON.parse(data) : data;
+    jsonObject = typeof data === "string" ? JSON.parse(data) : data;
   } catch (err) {
-    console.error('Cannot parse data to JSON:', err);
+    console.error("Cannot parse data to JSON:", err);
     return "Cannot parse image data to JSON, check console.";
   }
 
@@ -275,16 +293,16 @@ function jsonToString(data, ignoreKeys = [], indent = 0, indentChar = '  ') {
   let htmlString = "";
 
   Object.keys(jsonObject)
-    .filter(key => !ignoreKeys.includes(key))
-    .filter(key => key !== null || key !== undefined)
+    .filter((key) => !ignoreKeys.includes(key))
+    .filter((key) => key !== null || key !== undefined)
     // .sort((a, b) => a.localeCompare(b))
-    .forEach(key => {
+    .forEach((key) => {
       let value = jsonObject[key];
-      
+
       if (Array.isArray(value)) {
         let arrayContent = [];
 
-        value.forEach(item => {
+        value.forEach((item) => {
           if (typeof item === "object") {
             arrayContent.push(jsonToString(item, [], nextIndentLevel));
           } else {
@@ -299,6 +317,6 @@ function jsonToString(data, ignoreKeys = [], indent = 0, indentChar = '  ') {
 
       htmlString += `${currentIndent}${key}: ${value}\n`;
     });
-  
+
   return htmlString;
 }
