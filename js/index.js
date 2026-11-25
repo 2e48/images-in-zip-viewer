@@ -26,7 +26,6 @@ async function handleFile(file) {
   if (!file.name.endsWith(".zip")) {
     const accordion = accordionCreator(
       file.name,
-      file.name,
       `${file.name} is not a zip file!`,
     );
     resultContainer.appendChild(accordion);
@@ -40,7 +39,7 @@ async function handleFile(file) {
   });
 
   // Create an accordion for the ZIP file
-  const accordion = accordionCreator(file.name, file.name, imageContainer);
+  const accordion = accordionCreator(file.name, imageContainer);
   resultContainer.appendChild(accordion);
 
   try {
@@ -123,14 +122,29 @@ function createElement({
 }
 
 /**
+ * Generates a unique, DOM-safe identifier for an accordion item.
+ *
+ * This used to be a hash of the file name, which produced duplicate IDs when
+ * two uploads shared a name, and required patching String.prototype to work.
+ * A timestamp plus a monotonic counter stays unique even when several items
+ * are created within the same millisecond.
+ *
+ * @returns {string}
+ */
+let accordionSequence = 0;
+function nextAccordionId() {
+  accordionSequence += 1;
+  return `${Date.now().toString(36)}-${accordionSequence}`;
+}
+
+/**
  * Creates a Bootstrap-style accordion item
- * @param {string} id - Unique ID for the accordion
  * @param {string} headerText - Text for the accordion header
  * @param {string|HTMLElement} content - Content inside the accordion body
  * @returns {HTMLElement}
  */
-function accordionCreator(id, headerText, content) {
-  const itemId = String(id).hashCode(); // Generate unique ID
+function accordionCreator(headerText, content) {
+  const itemId = nextAccordionId();
 
   const heading = createElement({
     element: "h2",
@@ -170,20 +184,6 @@ function accordionCreator(id, headerText, content) {
 
   return accordionItem;
 }
-
-/**
- * Adds a simple hash function to String prototype for generating unique IDs
- * @returns {number}
- */
-String.prototype.hashCode = function () {
-  let hash = 0;
-  for (let i = 0; i < this.length; i++) {
-    const chr = this.charCodeAt(i);
-    hash = (hash << 5) - hash + chr;
-    hash |= 0; // Convert to 32-bit integer
-  }
-  return hash;
-};
 
 /**
  * Triggers a download of the given Blob data with the specified filename.
