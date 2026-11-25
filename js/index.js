@@ -7,9 +7,42 @@ const imageTypes = ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "webp"];
 const fileInput = document.getElementById("file");
 const resultContainer = document.getElementById("result");
 
+/*
+ * Object URLs created for the images currently on screen. Each one pins its
+ * decoded bitmap in memory until it is revoked, so a large ZIP would otherwise
+ * keep every image of every upload alive for the lifetime of the page.
+ */
+const activeObjectUrls = [];
+
+/**
+ * Registers an object URL so it can be revoked with the rest of the batch.
+ * @param {string} url
+ * @returns {string} The same URL
+ */
+function trackObjectUrl(url) {
+  activeObjectUrls.push(url);
+  return url;
+}
+
+/**
+ * Revokes every object URL created for the previous upload.
+ */
+function releaseObjectUrls() {
+  while (activeObjectUrls.length > 0) {
+    URL.revokeObjectURL(activeObjectUrls.pop());
+  }
+}
+
 // Listen for file input changes
 fileInput.addEventListener("change", async (evt) => {
   resultContainer.innerHTML = ""; // Clear previous results
+  releaseObjectUrls(); // The removed images no longer need their blob URLs
+
+  // Revoking the URLs would leave an open modal showing a broken image.
+  const openModal = bootstrap.Modal.getInstance(
+    document.getElementById("imageModal"),
+  );
+  if (openModal) openModal.hide();
 
   const files = evt.target.files;
   for (let i = 0; i < files.length; i++) {
@@ -55,7 +88,7 @@ async function handleFile(file) {
         try {
           // Get the image data as a Blob
           const data = await zipEntry.async("blob");
-          const imageUrl = URL.createObjectURL(data);
+          const imageUrl = trackObjectUrl(URL.createObjectURL(data));
 
           // Create image element
           const image = new Image();
