@@ -1,16 +1,3 @@
-/* Main container for each ZIP file section */
-.zip-section {
-    margin-bottom: 2rem;
-}
-
-.zip-header {
-    font-size: 1.25rem;
-    font-weight: bold;
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.25rem;
-    border-bottom: 1px solid #ccc;
-}
-
 /* Grid layout for images */
 .image-grid {
     display: grid;
@@ -40,25 +27,116 @@
     border-radius: 4px;
 }
 
-/* Metadata text */
-.image-info {
-    font-size: 0.85rem;
-    text-align: left;
-    word-break: break-word;
-}
-
-.prompt {
-    font-weight: bold;
-}
-
 .modal-fullscreen-custom .modal-dialog {
     max-width: 85vw;
     margin: 1.75rem auto;
 }
 
+/*
+ * Keep the dialog inside the viewport and let the body scroll. Without this the
+ * metadata column sets the modal height, and one large encoded value can push
+ * it tens of thousands of pixels tall.
+ */
+.modal-fullscreen-custom .modal-content {
+    max-height: calc(100vh - 3.5rem);
+    max-height: calc(100dvh - 3.5rem);
+}
+
+.modal-fullscreen-custom .modal-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.modal-image-col {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+}
+
 #modalImage {
-    max-height: 85vh;
+    max-height: 70vh;
+    max-height: 70dvh;
     object-fit: contain;
+}
+
+.modal-filename {
+    font-size: 0.9rem;
+    word-break: break-word;
+}
+
+/* Metadata panel */
+.meta-section {
+    margin-bottom: 1rem;
+}
+
+.meta-heading {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+}
+
+.meta-list {
+    display: grid;
+    grid-template-columns: minmax(0, 34%) minmax(0, 1fr);
+    gap: 0.3rem 0.75rem;
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+}
+
+/*
+ * grid items default to min-width:auto, so a long label refuses to shrink and
+ * paints over the value column instead of wrapping. NovelAI keys are long and
+ * contain underscores, which are not break opportunities by default.
+ */
+.meta-list dt {
+    font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.meta-list dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/*
+ * "All fields" lists raw metadata keys. They are long enough to collide with
+ * the value column even on a wide desktop, so this list is always stacked.
+ */
+.meta-list-stacked {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+}
+
+.meta-list-stacked dt {
+    margin-top: 0.55rem;
+}
+
+.meta-list-stacked dd {
+    margin-bottom: 0.15rem;
+}
+
+/* Bounded, scrollable JSON preview */
+.raw-json {
+    max-height: 45vh;
+    max-height: 45dvh;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.meta-note {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
 }
 
 /* Prompt box styling */
@@ -75,8 +153,14 @@
     font-size: 0.9rem;
 }
 
+/*
+ * Metadata <details> blocks live inside the image modal's metadata panel only,
+ * so scope these rules to #modalMetadata instead of styling every <details>
+ * on the page.
+ */
+
 /* Style <details> like a Bootstrap card */
-details {
+#modalMetadata details {
     border: 1px solid #dee2e6;
     border-radius: 0.375rem;
     padding: 0.5rem;
@@ -85,7 +169,7 @@ details {
 }
 
 /* Style <summary> like a Bootstrap card header */
-summary {
+#modalMetadata summary {
     font-weight: bold;
     cursor: pointer;
     list-style: none;
@@ -96,23 +180,84 @@ summary {
 }
 
 /* Remove default triangle in WebKit browsers */
-summary::-webkit-details-marker {
+#modalMetadata summary::-webkit-details-marker {
     display: none;
 }
 
-/* Optional: Add a custom triangle */
-summary::before {
+/* Custom triangle */
+#modalMetadata summary::before {
     content: "▶ ";
     display: inline-block;
     transition: transform 0.2s;
 }
 
-details[open] summary::before {
+#modalMetadata details[open] summary::before {
     transform: rotate(90deg);
 }
 
 /* Metadata inside details */
-details p {
+#modalMetadata details p {
     margin-bottom: 0.25rem;
     font-size: 0.9rem;
+}
+
+/*
+ * Mobile: this viewer is primarily used on a phone, so the modal becomes
+ * full-screen, the metadata list stacks instead of using two columns, and the
+ * image gives up height to the metadata.
+ */
+@media (max-width: 767.98px) {
+    .modal-fullscreen-custom .modal-dialog {
+        max-width: 100%;
+        margin: 0;
+    }
+
+    .modal-fullscreen-custom .modal-content {
+        min-height: 100vh;
+        min-height: 100dvh;
+        max-height: 100vh;
+        max-height: 100dvh;
+        border: 0;
+        border-radius: 0;
+    }
+
+    .modal-image-col {
+        position: static;
+    }
+
+    #modalImage {
+        max-height: 40vh;
+        max-height: 40dvh;
+    }
+}
+
+/*
+ * Narrower viewports leave the metadata column too slim for two columns, which
+ * is what made long labels run into their values. Stack the curated summary
+ * below the xl breakpoint; the "All fields" list is stacked at every width.
+ */
+@media (max-width: 1199.98px) {
+    .meta-list:not(.meta-list-stacked) {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+    }
+
+    .meta-list:not(.meta-list-stacked) dt {
+        margin-top: 0.5rem;
+    }
+
+    .meta-list:not(.meta-list-stacked) dd {
+        margin-bottom: 0.15rem;
+    }
+}
+
+/* Two readable tiles per row on narrow screens instead of one tall column. */
+@media (max-width: 575.98px) {
+    .image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    }
+
+    .grid-image {
+        height: 200px;
+    }
 }

@@ -1,7 +1,7 @@
 "use strict";
 
 // Supported image file extensions
-const imageTypes = ["png", "jpg", "jpeg", "gif", "bmp", "tiff"];
+const imageTypes = ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "webp"];
 
 // DOM elements
 const fileInput = document.getElementById("file");
@@ -64,76 +64,16 @@ async function handleFile(file) {
           image.title = itemName;
           image.className = "grid-image";
 
-          image.dataset.filename = itemName;
-          image.currentBlob = data;
-
-          image.onclick = () => {
-            const modalImage = document.getElementById("modalImage");
-            const modalMetadata = document.getElementById("modalMetadata");
-            const modalFilename = document.getElementById("modalFilename");
-            const downloadBtn = document.getElementById("downloadBtn");
-
-            modalImage.src = image.src;
-            modalFilename.textContent = image.dataset.filename;
-
-            downloadBtn.onclick = () => {
-              downloadImage(image.currentBlob, image.dataset.filename);
-            };
-
-            let additionalInfo = jsonToString(image.dataset.fullData, [
-              "prompt",
-              "uc",
-            ]);
-
-            // Populate metadata
-            modalMetadata.innerHTML = `
-              <p><strong>Prompt</strong></p>
-                <code class="prompt-box">${image.dataset.prompt || "N/A"}</code>
-              <p><strong>Negative</strong></p>
-                <code class="prompt-box">${image.dataset.uc || "N/A"}</code>
-              <details><summary>Other info</summary>
-                <p><strong>Model:</strong> ${image.dataset.model || "N/A"}</p>
-                <p><strong>Seed:</strong> ${image.dataset.seed || "N/A"}</p>
-                <p><strong>Sampler:</strong> ${image.dataset.sampler || "N/A"}</p>
-                <p><strong>Resolution (w x h):</strong> ${image.dataset.width || "N/A"}px x ${image.dataset.height || "N/A"}px</p>
-                <p><strong>Steps:</strong> ${image.dataset.steps || "N/A"}</p>
-                <p><strong>Scale:</strong> ${image.dataset.scale || "N/A"}</p>
-              </details>
-              <details><summary>Full JSON metadata</summary>
-                <p>Excluded <code>prompt</code> and <code>uc</code> since its already shown above</p>
-                <code class="prompt-box"">${additionalInfo}</code>
-              </details>
-            `;
-
-            const modal = new bootstrap.Modal(
-              document.getElementById("imageModal"),
-            );
-            modal.show();
+          // Parse the metadata up front so the modal reads it directly. Storing
+          // it on the element (previously a data-* attribute) meant copying a
+          // 130 KB base64 vibe blob into the DOM for every image.
+          const parsed = await exifr.parse(imageUrl);
+          const meta = {
+            exif: parsed || null,
+            parameters: parseComment(parsed),
           };
 
-          // Try to parse EXIF data
-          const parsed = await exifr.parse(imageUrl);
-
-          if (parsed) {
-            let parameters = {};
-
-            try {
-              parameters = JSON.parse(parsed.Comment || "{}");
-            } catch (e) {
-              console.warn("Failed to parse Comment as JSON", e);
-            }
-
-            image.dataset.model = parsed.Source || "Unknown";
-            image.dataset.prompt = parameters.prompt || "N/A";
-            image.dataset.uc = parameters.uc || "N/A";
-            image.dataset.seed = parameters.seed || "N/A";
-            image.dataset.sampler = parameters.sampler || "N/A";
-            image.dataset.steps = parameters.steps || "N/A";
-            image.dataset.scale = parameters.scale || "N/A";
-            image.dataset.width = parameters.width || "N/A";
-            image.dataset.height = parameters.height || "N/A";
-            image.dataset.fullData = parsed.Comment || "{}";
-          }
+          image.onclick = () => openImageModal(imageUrl, itemName, data, meta);
 
           // Create a container for the image and its metadata
           const imageHolder = createElement({
@@ -269,54 +209,463 @@ function downloadImage(blobData, filename) {
 }
 
 /**
- * Recursively converts a JSON object into a formatted, indented string representation.
+ * Escapes text for safe insertion into HTML.
  *
- * @param {object|string} data The JSON object or string to convert.
- * @param {string[]} ignoreKeys An array of keys to exclude from the output.
- * @param {number} indent The current indentation level (used for recursion).
- * @param {string} indentChar The character/string to use for each level of indentation.
- * @returns {string} The formatted, indented string representation of the JSON data.
+ * All metadata is rendered with textContent, so this is not required for the
+ * modal. It exists as the single place to harden any future innerHTML path,
+ * since prompts and filenames originate outside this application.
+ *
+ * @param {*} value
+ * @returns {string}
  */
-function jsonToString(data, ignoreKeys = [], indent = 0, indentChar = "  ") {
-  if (data === null || data === undefined) return "";
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
-  let jsonObject;
+/**
+ * Reads the NovelAI generation parameters out of parsed EXIF/PNG text data.
+ *
+ * NovelAI writes a JSON blob into a PNG tEXt chunk named "Comment", which
+ * exifr surfaces as `Comment`. WebP exports put the same JSON in an EXIF
+ * UserComment instead, so both are accepted.
+ *
+ * @param {object|null} parsed - Result of exifr.parse()
+ * @returns {object} Parsed parameters, or {} when absent/unreadable
+ */
+function parseComment(parsed) {
+  if (!parsed) return {};
+
+  const raw = parsed.Comment || parsed.UserComment;
+  if (!raw) return {};
+
   try {
-    jsonObject = typeof data === "string" ? JSON.parse(data) : data;
+    const value = JSON.parse(raw);
+    return value && typeof value === "object" ? value : {};
   } catch (err) {
-    console.error("Cannot parse data to JSON:", err);
-    return "Cannot parse image data to JSON, check console.";
+    console.warn("Failed to parse generation metadata as JSON", err);
+    return {};
+  }
+}
+
+/** Human-readable names for NovelAI request types. */
+const REQUEST_TYPE_LABELS = {
+  PromptGenerateRequest: "Text to image",
+  Img2ImgRequest: "Image to image",
+  InfillRequest: "Inpaint",
+};
+
+/**
+ * Keys already shown in the curated summary, so they are not repeated under
+ * "All fields".
+ */
+const CURATED_KEYS = new Set([
+  "prompt",
+  "uc",
+  "seed",
+  "sampler",
+  "steps",
+  "scale",
+  "width",
+  "height",
+  "request_type",
+  "strength",
+  "noise",
+  "reference_image_multiple",
+  "reference_strength_multiple",
+  "director_reference_strengths",
+  "model_name",
+  "model_hash",
+]);
+
+/**
+ * Encoded vibe blobs and other opaque payloads are meaningless as text and can
+ * be tens of thousands of characters long, so they are collapsed in the raw
+ * view. The exact original stays available through "Copy raw JSON".
+ */
+const ENCODED_VALUE_MIN_LENGTH = 1024;
+
+/**
+ * Resolves a display label for the model that produced an image.
+ *
+ * NovelAI has changed how this is recorded over time:
+ *   - V5 images carry `model_name` and `model_hash`.
+ *   - V4/V4.5 only carry a `Source` string such as
+ *     "NovelAI Diffusion V4.5 4BDE2A90".
+ *   - V3-era images report the base model instead, e.g.
+ *     "Stable Diffusion XL C1E1DE52".
+ *
+ * @param {string|undefined} source - The `Source` text chunk
+ * @param {object} parameters - Parsed generation parameters
+ * @returns {{name: string, hash: string}}
+ */
+function resolveModel(source, parameters) {
+  if (parameters.model_name) {
+    return { name: parameters.model_name, hash: parameters.model_hash || "" };
   }
 
-  const currentIndent = indentChar.repeat(indent);
-  const nextIndentLevel = indent + 1;
-  let htmlString = "";
+  if (!source) return { name: "Unknown", hash: "" };
 
-  Object.keys(jsonObject)
-    .filter((key) => !ignoreKeys.includes(key))
-    .filter((key) => key !== null || key !== undefined)
-    // .sort((a, b) => a.localeCompare(b))
-    .forEach((key) => {
-      let value = jsonObject[key];
+  const match = /^(.*?)\s+([0-9A-Fa-f]{8})$/.exec(source);
+  if (match) return { name: match[1], hash: match[2] };
 
-      if (Array.isArray(value)) {
-        let arrayContent = [];
+  return { name: source, hash: "" };
+}
 
-        value.forEach((item) => {
-          if (typeof item === "object") {
-            arrayContent.push(jsonToString(item, [], nextIndentLevel));
-          } else {
-            arrayContent.push(item);
-          }
-        });
+/**
+ * Formats a number without a trailing ".0" (NovelAI writes scale as a float).
+ * @param {*} value
+ * @returns {string}
+ */
+function formatNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? String(num) : String(value);
+}
 
-        value = `[ ${arrayContent.join(", ")} ]`;
-      } else if (typeof value === "object" && Boolean(value)) {
-        value = `{\n${jsonToString(value, [], nextIndentLevel)}${currentIndent}}`;
-      }
+/**
+ * Replaces long encoded strings with a short, readable placeholder.
+ * @param {*} value
+ * @returns {*}
+ */
+function summarizeEncodedValues(value) {
+  if (typeof value === "string") {
+    if (value.length < ENCODED_VALUE_MIN_LENGTH) return value;
+    return `[encoded data omitted: ${value.length.toLocaleString()} characters]`;
+  }
 
-      htmlString += `${currentIndent}${key}: ${value}\n`;
-    });
+  if (Array.isArray(value)) return value.map(summarizeEncodedValues);
 
-  return htmlString;
+  if (value && typeof value === "object") {
+    const copy = {};
+    for (const [key, entry] of Object.entries(value)) {
+      copy[key] = summarizeEncodedValues(entry);
+    }
+    return copy;
+  }
+
+  return value;
+}
+
+/**
+ * Formats a metadata value for the "All fields" list.
+ * @param {*} value
+ * @returns {string}
+ */
+function formatMetadataValue(value) {
+  if (value === null) return "null";
+  if (value === undefined) return "";
+
+  if (typeof value === "string") {
+    if (value.length >= ENCODED_VALUE_MIN_LENGTH) {
+      return `${value.length.toLocaleString()} characters of encoded data (see raw JSON)`;
+    }
+    return value;
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(summarizeEncodedValues(value));
+  }
+
+  return String(value);
+}
+
+/**
+ * Builds the curated label/value rows shown without expanding anything.
+ * @param {object} parameters
+ * @param {object|null} exif
+ * @returns {Array<[string, string]>}
+ */
+function buildCuratedRows(parameters, exif) {
+  const rows = [];
+
+  const model = resolveModel(exif ? exif.Source : undefined, parameters);
+  const modelLabel = model.hash ? `${model.name} (${model.hash})` : model.name;
+  rows.push(["Model", modelLabel]);
+
+  if (parameters.seed !== undefined) {
+    rows.push(["Seed", String(parameters.seed)]);
+  }
+  if (parameters.sampler) {
+    rows.push(["Sampler", parameters.sampler]);
+  }
+  if (parameters.steps !== undefined) {
+    rows.push(["Steps", formatNumber(parameters.steps)]);
+  }
+  if (parameters.scale !== undefined) {
+    rows.push(["CFG scale", formatNumber(parameters.scale)]);
+  }
+  if (parameters.width && parameters.height) {
+    rows.push(["Resolution", `${parameters.width} x ${parameters.height} px`]);
+  }
+
+  const mode =
+    REQUEST_TYPE_LABELS[parameters.request_type] || parameters.request_type;
+  if (mode) rows.push(["Mode", mode]);
+
+  if (parameters.strength !== undefined) {
+    rows.push(["Strength", formatNumber(parameters.strength)]);
+  }
+  if (parameters.noise !== undefined) {
+    rows.push(["Noise", formatNumber(parameters.noise)]);
+  }
+
+  // Vibe Transfer references are stored as encoded blobs, which cannot be
+  // decoded back into pictures. The count and strengths are still meaningful.
+  const references = parameters.reference_image_multiple;
+  if (Array.isArray(references) && references.length) {
+    const strengths = Array.isArray(parameters.reference_strength_multiple)
+      ? parameters.reference_strength_multiple
+      : [];
+    const suffix = strengths.length
+      ? ` · strength ${strengths.map(formatNumber).join(", ")}`
+      : "";
+    rows.push(["Vibe references", `${references.length} encoded${suffix}`]);
+  }
+
+  const directorStrengths = parameters.director_reference_strengths;
+  if (Array.isArray(directorStrengths) && directorStrengths.length) {
+    rows.push([
+      "Director references",
+      `${directorStrengths.length} · strength ${directorStrengths.map(formatNumber).join(", ")}`,
+    ]);
+  }
+
+  const charCaptions = parameters.v4_prompt?.caption?.char_captions;
+  if (Array.isArray(charCaptions) && charCaptions.length) {
+    rows.push(["Characters", String(charCaptions.length)]);
+  }
+
+  return rows;
+}
+
+/**
+ * Builds rows for every parameter not already covered by the curated summary.
+ * Unknown keys pass straight through, so new NovelAI fields stay visible
+ * without a code change.
+ * @param {object} parameters
+ * @returns {Array<[string, string]>}
+ */
+function buildOtherRows(parameters) {
+  return Object.keys(parameters)
+    .filter((key) => !CURATED_KEYS.has(key))
+    .map((key) => [key, formatMetadataValue(parameters[key])]);
+}
+
+/**
+ * Creates a heading plus its content block.
+ * @param {string} title
+ * @param {Node} content
+ * @returns {HTMLElement}
+ */
+function metadataSection(title, content) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "meta-section";
+
+  const heading = document.createElement("h6");
+  heading.className = "meta-heading";
+  heading.textContent = title;
+
+  wrapper.append(heading, content);
+  return wrapper;
+}
+
+/**
+ * Creates a preformatted box for a prompt or negative prompt.
+ * @param {string|undefined} text
+ * @returns {HTMLElement}
+ */
+function promptBox(text) {
+  const code = document.createElement("code");
+  code.className = "prompt-box";
+  code.textContent = text || "N/A";
+  return code;
+}
+
+/**
+ * Renders label/value pairs as a responsive definition list.
+ * @param {Array<[string, string]>} rows
+ * @param {string} [extraClass] - Additional class, e.g. "meta-list-stacked"
+ * @returns {HTMLElement}
+ */
+function definitionList(rows, extraClass = "") {
+  const list = document.createElement("dl");
+  list.className = extraClass
+    ? `meta-list ${extraClass}`
+    : "meta-list";
+
+  for (const [label, value] of rows) {
+    const term = document.createElement("dt");
+    term.textContent = label;
+
+    const description = document.createElement("dd");
+    description.textContent = value;
+
+    list.append(term, description);
+  }
+
+  return list;
+}
+
+/**
+ * Wraps content in a collapsed <details> block.
+ * @param {string} title
+ * @param {Node} content
+ * @returns {HTMLElement}
+ */
+function collapsible(title, content) {
+  const details = document.createElement("details");
+  const summary = document.createElement("summary");
+  summary.textContent = title;
+  details.append(summary, content);
+  return details;
+}
+
+/**
+ * Copies text to the clipboard, with a fallback for browsers that do not
+ * expose the async clipboard API.
+ * @param {string} text
+ * @returns {Promise<boolean>}
+ */
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-1000px";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    let copied = false;
+    try {
+      copied = document.execCommand("copy");
+    } catch (fallbackError) {
+      copied = false;
+    }
+
+    document.body.removeChild(textarea);
+    return copied;
+  }
+}
+
+/**
+ * Builds the "Raw metadata" block: a bounded, scrollable JSON preview plus a
+ * button that copies the untouched original.
+ * @param {object} meta
+ * @returns {HTMLElement}
+ */
+function rawMetadataBlock(meta) {
+  const wrapper = document.createElement("div");
+
+  const preview = { ...(meta.parameters || {}) };
+  delete preview.prompt;
+  delete preview.uc;
+
+  const hasData = Object.keys(preview).length > 0;
+
+  const pre = document.createElement("pre");
+  pre.className = "raw-json";
+  pre.textContent = hasData
+    ? JSON.stringify(summarizeEncodedValues(preview), null, 2)
+    : "No NovelAI metadata found for this image.";
+  wrapper.appendChild(pre);
+
+  const note = document.createElement("p");
+  note.className = "meta-note";
+  note.textContent =
+    "prompt and uc are shown above. Long encoded blobs are collapsed in this preview only; Copy raw JSON gives you the exact original, including them.";
+  wrapper.appendChild(note);
+
+  const copyButton = document.createElement("button");
+  copyButton.type = "button";
+  copyButton.className = "btn btn-outline-secondary btn-sm";
+  copyButton.textContent = "Copy raw JSON";
+
+  copyButton.addEventListener("click", async () => {
+    const original =
+      meta.exif && (meta.exif.Comment || meta.exif.UserComment)
+        ? meta.exif.Comment || meta.exif.UserComment
+        : JSON.stringify(meta.parameters || {}, null, 2);
+
+    const copied = await copyText(original);
+    copyButton.textContent = copied ? "Copied!" : "Copy failed";
+    setTimeout(() => {
+      copyButton.textContent = "Copy raw JSON";
+    }, 1500);
+  });
+
+  wrapper.appendChild(copyButton);
+  return wrapper;
+}
+
+/**
+ * Renders the full metadata panel for one image.
+ * @param {object} meta
+ * @returns {DocumentFragment}
+ */
+function renderMetadata(meta) {
+  const fragment = document.createDocumentFragment();
+  const parameters = meta.parameters || {};
+
+  fragment.appendChild(metadataSection("Prompt", promptBox(parameters.prompt)));
+  fragment.appendChild(
+    metadataSection("Negative prompt", promptBox(parameters.uc)),
+  );
+
+  const curatedRows = buildCuratedRows(parameters, meta.exif);
+  if (curatedRows.length) {
+    fragment.appendChild(definitionList(curatedRows));
+  }
+
+  const otherRows = buildOtherRows(parameters);
+  if (otherRows.length) {
+    fragment.appendChild(
+      collapsible(
+        "All fields",
+        definitionList(otherRows, "meta-list-stacked"),
+      ),
+    );
+  }
+
+  fragment.appendChild(
+    collapsible("Raw metadata (JSON)", rawMetadataBlock(meta)),
+  );
+
+  return fragment;
+}
+
+/**
+ * Populates and shows the image modal.
+ * @param {string} imageUrl
+ * @param {string} filename
+ * @param {Blob} blob
+ * @param {object} meta
+ */
+function openImageModal(imageUrl, filename, blob, meta) {
+  const modalElement = document.getElementById("imageModal");
+  const modalImage = document.getElementById("modalImage");
+  const modalFilename = document.getElementById("modalFilename");
+  const downloadBtn = document.getElementById("downloadBtn");
+  const metadataHost = document.getElementById("modalMetadata");
+
+  modalImage.src = imageUrl;
+  modalFilename.textContent = filename;
+  downloadBtn.onclick = () => downloadImage(blob, filename);
+
+  metadataHost.replaceChildren(renderMetadata(meta));
+
+  // Reopening the modal keeps the previous scroll position otherwise, which
+  // would drop the reader into the middle of long metadata.
+  const scrollHost = modalElement.querySelector(".modal-body");
+  if (scrollHost) scrollHost.scrollTop = 0;
+
+  bootstrap.Modal.getOrCreateInstance(modalElement).show();
 }
